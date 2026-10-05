@@ -1217,6 +1217,9 @@ def test_extract_sdist_rejects_an_archive_with_no_top_level(tmp_path: pathlib.Pa
     two empty-ish heads are the *only* ones there are: that is what makes this an archive with no top level rather than
     one that happens to have two.
 
+    On the runtimes whose fallback sees the raw name, ``/`` is refused outright as an escape instead, which is the same
+    outcome by a different route -- so the archive is refused either way and only the reason differs.
+
     """
     archive = tmp_path / 'demo-1.0.0.tar.gz'
     with tarfile.open(archive, 'w:gz') as tar:
@@ -1228,7 +1231,7 @@ def test_extract_sdist_rejects_an_archive_with_no_top_level(tmp_path: pathlib.Pa
     dest.mkdir()
     (dest / 'stale.txt').write_text('from a previous build', encoding='utf-8')
 
-    _refuses_to_extract(archive, os.curdir, dest, match='single top-level directory')
+    _refuses_to_extract(archive, os.curdir, dest, match='(single top-level directory|cannot be extracted safely)')
 
     assert (dest / 'stale.txt').read_text(encoding='utf-8') == 'from a previous build'
 
