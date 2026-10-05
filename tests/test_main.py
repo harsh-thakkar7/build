@@ -29,6 +29,7 @@ import build._ctx
 import build.env
 
 from build._compat import importlib as _importlib
+from build._compat.tarfile import _HAS_DATA_FILTER
 
 
 if TYPE_CHECKING:
@@ -1239,10 +1240,13 @@ def test_extract_sdist_rejects_an_archive_with_no_top_level(tmp_path: pathlib.Pa
 def test_extract_sdist_follows_the_rewritten_top_level(tmp_path: pathlib.Path) -> None:
     """The top level comes from the extracted names, so an absolute member no longer reads as ``/``.
 
-    ``data_filter`` drops the leading separator rather than refusing it, so this archive really extracts into ``pkg``.
-    Taking the top level from the raw ``TarInfo.name`` would see ``''`` for every member and find no top-level directory
-    at all; taking it from the filter's output gives the one that exists. Every member has to be absolute for the two
-    readings to differ, which is what makes this the case worth pinning.
+    Where the stdlib ``data`` filter is available it drops the leading separator rather than refusing the member, so
+    this archive really extracts into ``pkg``. Taking the top level from the raw ``TarInfo.name`` would see ``''`` for
+    every member and find no top-level directory at all; taking it from the filter's output gives the one that exists.
+    Every member has to be absolute for the two readings to differ, which is what makes this the case worth pinning.
+
+    On the runtimes without that filter the archive is refused instead, since nothing rewrites the name and an absolute
+    one does resolve outside the destination.
 
     """
     archive = tmp_path / 'demo-1.0.0.tar.gz'
@@ -1253,6 +1257,10 @@ def test_extract_sdist_follows_the_rewritten_top_level(tmp_path: pathlib.Path) -
             info.size = len(pkg_info)
             tar.addfile(info, io.BytesIO(pkg_info))
     dest = tmp_path / 'extract'
+
+    if not _HAS_DATA_FILTER:  # pragma: no cover -- the fallback is only reached on the oldest supported runtimes
+        _refuses_to_extract(archive, os.curdir, dest, match='cannot be extracted safely')
+        return
 
     with build.__main__._extract_sdist(str(archive), os.curdir, extract_dir=dest) as extracted:
         assert pathlib.Path(extracted) == dest / 'pkg'
